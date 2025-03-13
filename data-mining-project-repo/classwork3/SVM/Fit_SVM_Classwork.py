@@ -1,53 +1,82 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[2]:
+# In[5]:
 
 
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
+import numpy as np
+from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.svm import SVC
-from sklearn.model_selection import GridSearchCV, cross_val_score
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, classification_report, roc_curve, auc
+import matplotlib.pyplot as plt
 
 # Load the dataset
-df = pd.read_csv("student_data.csv")
+data = pd.read_csv("D:\Documents\Sem_3\IS733\Classwork 3\student_data.csv")
 
-# Prepare the data
-X = df[["Hours_Studied", "Review_Session"]]  # Features
-y = df["Results"]  # Target variable
+# Prepare the data for SVM
+X = data[['Hours_Studied', 'Review_Session']]
+y = data['Results']
 
-# Fit SVM with Linear Kernel
-svm_linear = SVC(kernel="linear")
-svm_linear.fit(X, y)
+# Split the data into training and testing sets (80% train, 20% test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Predict and evaluate
-y_pred_linear = svm_linear.predict(X)
-accuracy_linear = accuracy_score(y, y_pred_linear)
-print("Linear SVM Accuracy:", accuracy_linear)
+# 1. Fit SVM with Linear Kernel
+linear_svm = SVC(kernel='linear', probability=True)  # Enable probability for ROC curve
+linear_svm.fit(X_train, y_train)
 
-# Fit SVM with RBF Kernel and Grid Search for best gamma
-param_grid = {"gamma": [0.1, 1, 10, 100]}  # Parameter grid for gamma
-svm_rbf = SVC(kernel="rbf")
+# Predictions and evaluation for Linear Kernel
+y_pred_linear = linear_svm.predict(X_test)
+y_pred_proba_linear = linear_svm.predict_proba(X_test)[:, 1]  # Probabilities for ROC curve
+accuracy_linear = accuracy_score(y_test, y_pred_linear)
+print("Linear Kernel SVM Results:")
+print(f"Accuracy: {accuracy_linear}")
+print(classification_report(y_test, y_pred_linear))
 
-# Perform grid search with 5-fold cross-validation ##K-fold
-grid_search = GridSearchCV(svm_rbf, param_grid, cv=5)
-grid_search.fit(X, y)
+# 2. Fit SVM with RBF Kernel and Grid Search for best gamma
+# Define the parameter grid for gamma
+param_grid = {'gamma': [0.001, 0.01, 0.1, 1, 10, 100]}
 
-# Best gamma and accuracy
-best_gamma = grid_search.best_params_["gamma"]
-print("Best Gamma for RBF Kernel:", best_gamma)
+# Initialize the SVM with RBF kernel
+rbf_svm = SVC(kernel='rbf', probability=True)  # Enable probability for ROC curve
 
-# Predict and evaluate with the best gamma
-y_pred_rbf = grid_search.predict(X)
-accuracy_rbf = accuracy_score(y, y_pred_rbf)
-print("RBF SVM Accuracy (with best gamma):", accuracy_rbf)
+# Perform grid search with 5-fold cross-validation
+grid_search = GridSearchCV(rbf_svm, param_grid, cv=5)
+grid_search.fit(X_train, y_train)
 
-# Cross-validation scores for RBF SVM with best gamma
-cv_scores = cross_val_score(grid_search.best_estimator_, X, y, cv=5)
-print("Cross-Validation Scores (RBF SVM):", cv_scores)
-print("Mean Cross-Validation Accuracy (RBF SVM):", cv_scores.mean())
+# Best gamma value
+best_gamma = grid_search.best_params_['gamma']
+print(f"Best gamma value from grid search: {best_gamma}")
+
+# Predictions and evaluation for RBF Kernel with best gamma
+y_pred_rbf = grid_search.predict(X_test)
+y_pred_proba_rbf = grid_search.predict_proba(X_test)[:, 1]  # Probabilities for ROC curve
+accuracy_rbf = accuracy_score(y_test, y_pred_rbf)
+print("RBF Kernel SVM Results:")
+print(f"Accuracy: {accuracy_rbf}")
+print(classification_report(y_test, y_pred_rbf))
+
+# ROC Curve for Linear Kernel
+fpr_linear, tpr_linear, _ = roc_curve(y_test, y_pred_proba_linear)
+roc_auc_linear = auc(fpr_linear, tpr_linear)
+
+# ROC Curve for RBF Kernel
+fpr_rbf, tpr_rbf, _ = roc_curve(y_test, y_pred_proba_rbf)
+roc_auc_rbf = auc(fpr_rbf, tpr_rbf)
+
+# Plot ROC Curves
+plt.figure(figsize=(8, 6))
+plt.plot(fpr_linear, tpr_linear, color='blue', lw=2, label=f'Linear Kernel (AUC = {roc_auc_linear:.2f})')
+plt.plot(fpr_rbf, tpr_rbf, color='red', lw=2, label=f'RBF Kernel (AUC = {roc_auc_rbf:.2f})')
+plt.plot([0, 1], [0, 1], color='gray', lw=1, linestyle='--')
+plt.xlabel('False Positive Rate')
+plt.ylabel('True Positive Rate')
+plt.title('Receiver Operating Characteristic (ROC) Curve')
+plt.legend(loc="lower right")
+plt.show()
+
+plt.savefig(r"D:\Documents\Sem_3\IS733\Classwork 3\SVM.png")
+plt.show()
 
 
 # In[ ]:
